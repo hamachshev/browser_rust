@@ -64,6 +64,7 @@ impl URL {
             "https" => self.request_https(),
             "http" => self.request_http(),
             "file" => self.request_file(),
+            "data" => self.request_data(),
             _ => Ok(Response::None),
         }
     }
@@ -73,6 +74,12 @@ impl URL {
         } else {
             None
         }
+    }
+    fn request_data(&self) -> anyhow::Result<Response> {
+        let data = self
+            .data()
+            .ok_or(anyhow::anyhow!("no data- should not happen"))?;
+        Ok(Response::Data(data.to_string()))
     }
     fn request_file(&self) -> anyhow::Result<Response> {
         let path = self

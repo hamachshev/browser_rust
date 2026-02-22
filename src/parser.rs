@@ -10,7 +10,45 @@ pub fn parse(response: Response) -> anyhow::Result<Box<dyn Display>> {
             Ok(Box::new(HttpResponseParser::parse(&res)?))
         }
         Response::File(res) => Ok(Box::new(res)),
+        Response::Data(res) => Ok(Box::new(DataResponseParser::parse(&res)?)),
         Response::None => todo!(),
+    }
+}
+
+pub struct DataResponseParser {
+    mime_type: String,
+    data: String,
+}
+
+#[derive(Debug, Error)]
+pub enum DataResponseParserError {
+    #[error("Malformed mime type or data")]
+    MalformedMimeTypeOrData,
+
+    #[error("unsupported mime type for data url")]
+    UnsupportedMIMEType,
+}
+
+impl DataResponseParser {
+    pub fn parse(response: &str) -> Result<Self, DataResponseParserError> {
+        let (mime_type, data) = response
+            .split_once(',')
+            .ok_or(DataResponseParserError::MalformedMimeTypeOrData)?;
+        Ok(Self {
+            mime_type: mime_type.to_string(),
+            data: data.to_string(),
+        })
+    }
+}
+impl Display for DataResponseParser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.mime_type.as_str() {
+            "text/html" => {
+                let text = HTMLParser::parse(&self.data);
+                write!(f, "{}", text)
+            }
+            _ => Err(std::fmt::Error),
+        }
     }
 }
 #[derive(Debug, Error)]
