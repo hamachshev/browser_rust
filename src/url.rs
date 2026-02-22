@@ -132,7 +132,13 @@ impl URL {
         let mut stream = TcpStream::connect((host, 80))?;
 
         let request = format!(
-            "GET {} HTTP/1.1 \r\nHost: {}\r\nConnection: close\r\n\r\n",
+            concat!(
+                "GET {} HTTP/1.1\r\n",
+                "Host: {}\r\n",
+                "Connection: close\r\n",
+                "User-Agent: browser_rust\r\n",
+                "\r\n"
+            ),
             path, host
         );
 
@@ -172,6 +178,7 @@ impl URL {
                     "GET {} HTTP/1.1\r\n",
                     "Host: {}\r\n",
                     "Connection: close\r\n",
+                    "User-Agent: browser_rust\r\n",
                     "\r\n"
                 ),
                 path, host
