@@ -1,6 +1,6 @@
 use std::{env::args, process::exit};
 
-use browser_rust::url::URL;
+use browser_rust::{parser, url::URL};
 
 fn main() -> anyhow::Result<()> {
     let Some(url) = args().nth(1) else {
@@ -9,8 +9,9 @@ fn main() -> anyhow::Result<()> {
     };
     let url: URL = url.parse()?;
     let res = url.request()?;
+    let parsed = parser::parse(res)?;
 
-    print!("{}", res);
+    print!("{}", &parsed);
     //let parser = HttpResponseParser::parse(&res)?;
     //let html = HTMLParser::parse(&parser.body());
     //println!("{}", html);

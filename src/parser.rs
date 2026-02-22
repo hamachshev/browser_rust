@@ -1,6 +1,18 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display, rc::Rc};
 use thiserror::Error;
 
+use crate::response::Response;
+
+pub fn parse(response: Response) -> anyhow::Result<Box<dyn Display>> {
+    match response {
+        Response::Http(res) => {
+            let res = Rc::new(res);
+            Ok(Box::new(HttpResponseParser::parse(&res)?))
+        }
+        Response::File(res) => Ok(Box::new(res)),
+        Response::None => todo!(),
+    }
+}
 #[derive(Debug, Error)]
 pub enum HttpResponseParseError {
     #[error("missing http version in response")]
@@ -15,17 +27,16 @@ pub enum HttpResponseParseError {
     #[error("malformed header in response")]
     MalformedHeader,
 }
-pub struct HttpResponseParser<'a> {
-    response: &'a str,
-    http_version: &'a str,
+pub struct HttpResponseParser {
+    http_version: String,
     status: u32,
-    message: &'a str,
-    headers: HashMap<&'a str, &'a str>,
-    body: &'a str,
+    message: String,
+    headers: HashMap<String, String>,
+    body: String,
 }
 
-impl<'a> HttpResponseParser<'a> {
-    pub fn parse(response: &str) -> Result<HttpResponseParser<'_>, HttpResponseParseError> {
+impl HttpResponseParser {
+    pub fn parse(response: &str) -> Result<HttpResponseParser, HttpResponseParseError> {
         let (http_version, rest) = response
             .split_once(" ")
             .ok_or(HttpResponseParseError::MissingHTTPVersion)?;
@@ -52,16 +63,15 @@ impl<'a> HttpResponseParser<'a> {
             let (key, value) = line
                 .split_once(":")
                 .ok_or(HttpResponseParseError::MalformedHeader)?;
-            headers.insert(key, value);
+            headers.insert(key.to_string(), value.to_string());
         }
 
         Ok(HttpResponseParser {
-            response,
-            http_version,
+            http_version: http_version.to_string(),
             status,
-            message,
+            message: message.to_string(),
             headers,
-            body,
+            body: body.to_string(),
         })
     }
 
@@ -69,16 +79,22 @@ impl<'a> HttpResponseParser<'a> {
         self.status
     }
     pub fn body(&self) -> &str {
-        self.body
+        self.body.as_str()
     }
     pub fn status_message(&self) -> &str {
-        self.message
+        self.message.as_str()
     }
-    pub fn headers_map(&self) -> &HashMap<&str, &str> {
+    pub fn headers_map(&self) -> &HashMap<String, String> {
         &self.headers
     }
     pub fn http_version(&self) -> &str {
-        self.http_version
+        self.http_version.as_str()
+    }
+}
+
+impl Display for HttpResponseParser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", HTMLParser::parse(self.body()))
     }
 }
 

@@ -1,3 +1,3 @@
-pub mod parse;
+pub mod parser;
 pub mod response;
 pub mod url;
