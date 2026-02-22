@@ -10,7 +10,17 @@ use crate::response::Response;
 use rustls::{ClientConfig, Stream};
 use thiserror::Error;
 
-const ALLOWED_SCHEMES: [&'static str; 4] = ["http", "https", "file", "data"];
+const ALLOWED_SCHEMES: [&'static str; 5] = ["http", "https", "file", "data", "view-source"];
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum Scheme {
+    Http,
+    Https,
+    File,
+    Data,
+    ViewSource,
+    Unknown,
+}
 pub struct URL {
     serialization: String,
     scheme_end: usize, // does not include ://, and is exclusive ie one more than the actually
@@ -22,8 +32,15 @@ pub struct URL {
 
 #[allow(unused)]
 impl URL {
-    pub fn scheme(&self) -> &str {
-        &self.serialization[0..self.scheme_end]
+    pub fn scheme(&self) -> Scheme {
+        match &self.serialization[0..self.scheme_end] {
+            "http" => Scheme::Http,
+            "https" => Scheme::Https,
+            "file" => Scheme::File,
+            "data" => Scheme::Data,
+            "view-source" => Scheme::ViewSource,
+            _ => Scheme::Unknown,
+        }
     }
 
     pub fn host(&self) -> Option<&str> {
@@ -61,11 +78,12 @@ impl URL {
         };
 
         match self.scheme() {
-            "https" => self.request_https(),
-            "http" => self.request_http(),
-            "file" => self.request_file(),
-            "data" => self.request_data(),
-            _ => Ok(Response::None),
+            Scheme::Http => self.request_http(),
+            Scheme::Https => self.request_https(),
+            Scheme::File => self.request_file(),
+            Scheme::Data => self.request_data(),
+            Scheme::ViewSource => self.request_view_source(),
+            Scheme::Unknown => Err(anyhow::anyhow!("Cannot request unknown/unsupported scheme")),
         }
     }
     fn data(&self) -> Option<&str> {
@@ -74,6 +92,14 @@ impl URL {
         } else {
             None
         }
+    }
+    fn request_view_source(&self) -> anyhow::Result<Response> {
+        let underlying_url: URL = self
+            .data()
+            .ok_or(anyhow::anyhow!("no data in view-source url"))?
+            .parse()?;
+        let res = underlying_url.request()?;
+        Ok(Response::ViewSource(Box::new(res)))
     }
     fn request_data(&self) -> anyhow::Result<Response> {
         let data = self
@@ -237,7 +263,7 @@ mod test {
     fn http_url() {
         let url = "http://www.google.com".parse::<URL>().unwrap();
 
-        assert_eq!(url.scheme(), "http");
+        assert_eq!(url.scheme(), Scheme::Http);
         assert_eq!(url.host(), Some("www.google.com"));
         assert_eq!(url.path(), Some("/"));
         assert_eq!(url.data(), None);
@@ -257,13 +283,13 @@ mod test {
     #[test]
     fn https_url() {
         let url = "https://www.google.com".parse::<URL>().unwrap();
-        assert_eq!(url.scheme(), "https")
+        assert_eq!(url.scheme(), Scheme::Https)
     }
 
     #[test]
     fn data_url() {
         let url: URL = "data:text/html,Hello World!".parse().unwrap();
-        assert_eq!(url.scheme(), "data");
+        assert_eq!(url.scheme(), Scheme::Data);
         assert_eq!(url.host(), None);
         assert_eq!(url.path(), None);
         assert_eq!(url.data(), Some("text/html,Hello World!"));
@@ -271,7 +297,7 @@ mod test {
     #[test]
     fn file_url_with_blank_authority() {
         let url: URL = "file:///cargo.toml".parse().unwrap();
-        assert_eq!(url.scheme(), "file");
+        assert_eq!(url.scheme(), Scheme::File);
         assert_eq!(url.host(), Some(""));
         assert_eq!(url.path(), Some("/cargo.toml"));
         assert_eq!(url.data(), None);
@@ -280,7 +306,7 @@ mod test {
     #[test]
     fn file_url_with_no_authority() {
         let url: URL = "file:/cargo.toml".parse().unwrap();
-        assert_eq!(url.scheme(), "file");
+        assert_eq!(url.scheme(), Scheme::File);
         assert_eq!(url.host(), None);
         assert_eq!(url.path(), Some("/cargo.toml"));
         assert_eq!(url.data(), None);
@@ -289,8 +315,21 @@ mod test {
     #[test]
     fn http_with_port() {
         let url: URL = "http://localhost:8080/index.html".parse().unwrap();
-        assert_eq!(url.scheme(), "http");
+        assert_eq!(url.scheme(), Scheme::Http);
         assert_eq!(url.host(), Some("localhost:8080"));
         assert_eq!(url.port(), Some(8080))
+    }
+
+    #[test]
+    fn view_source_http() {
+        let url: URL = "view-source:http://browser.engineering/examples/example1-simple.html"
+            .parse()
+            .unwrap();
+        assert_eq!(url.scheme(), Scheme::ViewSource);
+        assert_eq!(url.host(), None);
+        assert_eq!(
+            url.data(),
+            Some("http://browser.engineering/examples/example1-simple.html")
+        )
     }
 }

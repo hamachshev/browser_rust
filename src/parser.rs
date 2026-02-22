@@ -11,7 +11,35 @@ pub fn parse(response: Response) -> anyhow::Result<Box<dyn Display>> {
         }
         Response::File(res) => Ok(Box::new(res)),
         Response::Data(res) => Ok(Box::new(DataResponseParser::parse(&res)?)),
+        Response::ViewSource(res) => Ok(Box::new(ViewSourceResponseParser::parse(*res)?)),
         Response::None => todo!(),
+    }
+}
+
+pub struct ViewSourceResponseParser {
+    source: String,
+}
+
+impl ViewSourceResponseParser {
+    pub fn parse(response: Response) -> anyhow::Result<Self> {
+        match response {
+            Response::Http(ref res) => {
+                let parser = HttpResponseParser::parse(res)?;
+                Ok(Self {
+                    source: parser.body().to_string(),
+                })
+            }
+            Response::File(_) => unimplemented!(),
+            Response::Data(_) => unimplemented!(),
+            Response::ViewSource(response) => Self::parse(*response),
+            Response::None => unimplemented!(),
+        }
+    }
+}
+
+impl Display for ViewSourceResponseParser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", &self.source)
     }
 }
 
