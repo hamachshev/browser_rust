@@ -129,7 +129,7 @@ impl HttpResponseParser {
             let (key, value) = line
                 .split_once(":")
                 .ok_or(HttpResponseParseError::MalformedHeader)?;
-            headers.insert(key.to_string(), value.to_string());
+            headers.insert(key.to_string(), value.trim().to_string());
         }
 
         Ok(HttpResponseParser {
