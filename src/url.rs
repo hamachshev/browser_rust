@@ -1,13 +1,5 @@
-use std::{
-    fs::File,
-    io::{BufReader, Read, Write},
-    net::TcpStream,
-    str::FromStr,
-    sync::Arc,
-};
+use std::str::FromStr;
 
-use crate::response::Response;
-use rustls::{ClientConfig, Stream};
 use thiserror::Error;
 
 const ALLOWED_SCHEMES: [&'static str; 5] = ["http", "https", "file", "data", "view-source"];
@@ -72,123 +64,12 @@ impl URL {
         }
     }
 
-    pub fn request(&self) -> anyhow::Result<Response> {
-        if let Some(host) = self.host() {
-            println!("Connecting to: {}", host);
-        };
-
-        match self.scheme() {
-            Scheme::Http => self.request_http(),
-            Scheme::Https => self.request_https(),
-            Scheme::File => self.request_file(),
-            Scheme::Data => self.request_data(),
-            Scheme::ViewSource => self.request_view_source(),
-            Scheme::Unknown => Err(anyhow::anyhow!("Cannot request unknown/unsupported scheme")),
-        }
-    }
-    fn data(&self) -> Option<&str> {
+    pub fn data(&self) -> Option<&str> {
         if let Some(data_end) = self.data_end {
             Some(&self.serialization[self.scheme_end + 1..data_end])
         } else {
             None
         }
-    }
-    fn request_view_source(&self) -> anyhow::Result<Response> {
-        let underlying_url: URL = self
-            .data()
-            .ok_or(anyhow::anyhow!("no data in view-source url"))?
-            .parse()?;
-        let res = underlying_url.request()?;
-        Ok(Response::ViewSource(Box::new(res)))
-    }
-    fn request_data(&self) -> anyhow::Result<Response> {
-        let data = self
-            .data()
-            .ok_or(anyhow::anyhow!("no data- should not happen"))?;
-        Ok(Response::Data(data.to_string()))
-    }
-    fn request_file(&self) -> anyhow::Result<Response> {
-        let path = self
-            .path()
-            .ok_or(anyhow::anyhow!("missing path in file url"))?;
-        println!("{}", path);
-        let file = File::open(path)?;
-
-        let mut bufread = BufReader::new(file);
-        let mut contents = String::new();
-        bufread.read_to_string(&mut contents);
-
-        Ok(Response::File(contents))
-    }
-
-    fn request_http(&self) -> anyhow::Result<Response> {
-        let host = self
-            .host()
-            .ok_or(anyhow::anyhow!("missing host in http request"))?;
-
-        let path = self
-            .path()
-            .ok_or(anyhow::anyhow!("missing path in http request"))?;
-        let mut stream = TcpStream::connect((host, 80))?;
-
-        let request = format!(
-            concat!(
-                "GET {} HTTP/1.1\r\n",
-                "Host: {}\r\n",
-                "Connection: close\r\n",
-                "User-Agent: browser_rust\r\n",
-                "\r\n"
-            ),
-            path, host
-        );
-
-        println!("{}", &request);
-
-        let _ = stream.write(request.as_bytes());
-        let mut bufread = BufReader::new(&stream);
-        let mut buffer = String::new();
-        bufread.read_to_string(&mut buffer)?;
-        Ok(Response::Http(buffer))
-    }
-
-    fn request_https(&self) -> anyhow::Result<Response> {
-        let host = self
-            .host()
-            .ok_or(anyhow::anyhow!("missing host in https request"))?;
-
-        let path = self
-            .path()
-            .ok_or(anyhow::anyhow!("missing path in https request"))?;
-
-        let root_store =
-            rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-
-        let config = ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-
-        let rc_config = Arc::new(config);
-        let mut client = rustls::ClientConnection::new(rc_config, host.to_string().try_into()?)?;
-        let mut socket = TcpStream::connect((host, 443))?;
-        let mut stream = Stream::new(&mut client, &mut socket);
-
-        stream.write_all(
-            format!(
-                concat!(
-                    "GET {} HTTP/1.1\r\n",
-                    "Host: {}\r\n",
-                    "Connection: close\r\n",
-                    "User-Agent: browser_rust\r\n",
-                    "\r\n"
-                ),
-                path, host
-            )
-            .as_bytes(),
-        );
-
-        let mut buffer = String::new();
-        let _ = stream.read_to_string(&mut buffer);
-        Ok(Response::Http(buffer))
     }
 }
 
