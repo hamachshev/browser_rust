@@ -7,8 +7,12 @@ use hex;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-pub fn add_index(index_path: &Path, index: &impl Serialize) -> anyhow::Result<PathBuf> {
-    let mut index_path = PathBuf::from(index_path);
+pub fn add_index(
+    index_base_path: &Path,
+    index: &mut (impl Serialize + Index),
+    cache_path: PathBuf,
+) -> anyhow::Result<PathBuf> {
+    let mut index_path = PathBuf::from(index_base_path);
     let serialized = serde_json::to_string(index)?;
     let hash: String = hex::encode(Sha256::digest(&serialized).to_vec());
     index_path.push(&hash[0..2]);
@@ -17,6 +21,13 @@ pub fn add_index(index_path: &Path, index: &impl Serialize) -> anyhow::Result<Pa
     DirBuilder::new().recursive(true).create(&index_path)?;
     index_path.push(&hash[4..]);
 
+    // need to do this after hashing for the index path
+    // becasue when retrieve will hash the non-cache-path-ed key because we are looking to retrieve
+    // the path to the cached item which we wont have. So add the path now, reserialize, and then
+    // write key to index
+
+    index.set_value_hash_path(cache_path);
+    let serialized = serde_json::to_string(index)?;
     std::fs::write(&index_path, serialized)?;
     Ok(index_path)
 }
@@ -36,15 +47,31 @@ mod test {
         let index_path = PathBuf::from("test-index");
 
         #[derive(Serialize, Deserialize)]
-        struct Index {
-            inner_hash: String,
+        struct Key {
+            data: String,
+            inner_hash_path: Option<PathBuf>,
         }
 
-        let test_index = Index {
-            inner_hash: "Nowhere".to_string(),
+        let mut test_index = Key {
+            data: "test_add_index".to_string(),
+            inner_hash_path: None,
         };
+        impl Index for Key {
+            fn set_value_hash_path(&mut self, path: PathBuf) {
+                self.inner_hash_path = Some(path);
+            }
 
-        let path = add_index(&index_path, &test_index).unwrap();
+            fn get_value_hash_path(&self) -> anyhow::Result<PathBuf> {
+                unimplemented!()
+            }
+        }
+
+        let path = add_index(
+            index_path.as_path(),
+            &mut test_index,
+            "this is a fake path".into(),
+        )
+        .unwrap();
 
         let contents = std::fs::read_to_string(path).unwrap();
 

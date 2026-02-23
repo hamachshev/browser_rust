@@ -1,13 +1,12 @@
 mod cache;
 mod index;
-mod save;
 
 use std::path::PathBuf;
 
 use serde::Serialize;
 
 pub use crate::index::Index;
-use crate::save::save;
+use crate::index::add_index;
 
 pub struct Cache {
     index_path: PathBuf,
@@ -23,11 +22,16 @@ impl Cache {
     }
     pub fn save(
         &self,
-        index: &mut (impl Serialize + Index),
+        key: &mut (impl Serialize + Index),
         value: impl AsRef<[u8]>,
     ) -> anyhow::Result<PathBuf> {
-        save(&self.index_path, &self.cache_path, index, value)
+        let cache_path = cache::put(&self.cache_path, value)?;
+
+        add_index(&self.index_path, key, cache_path)
     }
+    //pub fn get<T>(key: &(impl Serialize + Index)) -> anyhow::Result<T> {
+    //
+    //}
 }
 
 #[cfg(test)]
