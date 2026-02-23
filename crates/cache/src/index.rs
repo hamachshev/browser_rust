@@ -1,10 +1,14 @@
-use std::{fs::DirBuilder, path::PathBuf};
+use std::{
+    fs::DirBuilder,
+    path::{Path, PathBuf},
+};
 
 use hex;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-pub fn add_index(mut index_path: PathBuf, index: &impl Serialize) -> anyhow::Result<PathBuf> {
+pub fn add_index(index_path: &Path, index: &impl Serialize) -> anyhow::Result<PathBuf> {
+    let mut index_path = PathBuf::from(index_path);
     let serialized = serde_json::to_string(index)?;
     let hash: String = hex::encode(Sha256::digest(&serialized).to_vec());
     index_path.push(&hash[0..2]);
@@ -15,6 +19,11 @@ pub fn add_index(mut index_path: PathBuf, index: &impl Serialize) -> anyhow::Res
 
     std::fs::write(&index_path, serialized)?;
     Ok(index_path)
+}
+
+pub trait Index {
+    fn set_value_hash_path(&mut self, path: PathBuf);
+    fn get_value_hash_path(&self) -> anyhow::Result<PathBuf>;
 }
 
 #[cfg(test)]
@@ -35,7 +44,7 @@ mod test {
             inner_hash: "Nowhere".to_string(),
         };
 
-        let path = add_index(index_path, &test_index).unwrap();
+        let path = add_index(&index_path, &test_index).unwrap();
 
         let contents = std::fs::read_to_string(path).unwrap();
 
