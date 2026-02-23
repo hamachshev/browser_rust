@@ -6,9 +6,7 @@ use std::{
 use anyhow::Context;
 use ssri::Integrity;
 
-pub struct Cacher;
-
-pub fn put(cache: impl AsRef<Path>, content: &[u8]) -> anyhow::Result<()> {
+pub fn put(cache: impl AsRef<Path>, content: &[u8]) -> anyhow::Result<PathBuf> {
     let integrity = Integrity::from(content);
     let path = get_path(cache.as_ref(), &integrity)?;
     let (dirs, _) = path
@@ -17,8 +15,8 @@ pub fn put(cache: impl AsRef<Path>, content: &[u8]) -> anyhow::Result<()> {
         .rsplit_once('/')
         .context("could not find dir structure in integrity path")?;
     DirBuilder::new().recursive(true).create(dirs)?;
-    std::fs::write(path, content)?;
-    Ok(())
+    std::fs::write(&path, content)?;
+    Ok(path)
 }
 
 fn get_path(cache: impl AsRef<Path>, integrity: &Integrity) -> anyhow::Result<PathBuf> {
