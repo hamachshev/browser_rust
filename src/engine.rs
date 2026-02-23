@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Context;
 use rustls::{ClientConfig, Stream};
 
 use crate::{
@@ -26,6 +27,17 @@ pub fn fetch(url: &URL) -> anyhow::Result<Response> {
                     .headers_map()
                     .get("Location")
                     .ok_or(anyhow::anyhow!("Missing Location header in 300 response"))?;
+                println!("{}", location);
+
+                //handle relative paths
+                let location = if location.starts_with("/") {
+                    let scheme = url.scheme();
+                    let base_url = url.host().context("relative path; couldnt get base")?;
+                    format!("{}://{}{}", scheme, base_url, location)
+                } else {
+                    location.to_string()
+                };
+
                 println!("{}", location);
                 let new_url: URL = location.parse()?;
                 response = request(&new_url)

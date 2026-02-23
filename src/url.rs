@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use thiserror::Error;
 
@@ -12,6 +12,19 @@ pub enum Scheme {
     Data,
     ViewSource,
     Unknown,
+}
+impl Display for Scheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let scheme = match self {
+            Scheme::Http => "http",
+            Scheme::Https => "https",
+            Scheme::File => "file",
+            Scheme::Data => "data",
+            Scheme::ViewSource => "view-source",
+            Scheme::Unknown => "",
+        };
+        write!(f, "{}", scheme)
+    }
 }
 pub struct URL {
     serialization: String,
